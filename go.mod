@@ -1,6 +1,6 @@
 module github.com/raidancampbell/scancheck
 
-go 1.22.3
+go 1.20
 
 require golang.org/x/tools v0.24.0
 

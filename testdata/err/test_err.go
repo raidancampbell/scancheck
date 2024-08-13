@@ -1,4 +1,4 @@
-package testdata
+package err
 
 import (
 	"bufio"

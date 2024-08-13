@@ -7,7 +7,7 @@ import (
 	"golang.org/x/tools/go/ast/inspector"
 )
 
-var Analyzer = &analysis.Analyzer{
+var ErrAnalyzer = &analysis.Analyzer{
 	Name: "scancheck",
 	Doc:  "Checks that bufio scanner errors are checked outside a Scan() loop",
 	Run:  run,
@@ -34,66 +34,39 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 
-		if !isCallToScannerScan(cond) {
+		if !isCallToScannerFunc(cond, "Scan") {
 			return
 		}
 
-		// now that we've found a for loop, recursively walk the entire AST within it to find if a scanner.Err() call is made
-		ast.Inspect(forNode.Body, func(node ast.Node) bool {
-			callExpr, ok := node.(*ast.CallExpr)
-			if !ok {
-				return true
-			}
-
-			if isCallToScannerErr(callExpr) {
-				pass.Reportf(callExpr.Pos(), "scanner.Err() called inside a Scan() loop")
-				return false
-			}
-			return true
-		})
+		inspectBlockForFunc(pass, forNode.Body, "Err")
 		return
 	})
 
 	return nil, nil
 }
 
-func isCallToScannerScan(node *ast.CallExpr) bool {
-	selx, ok := node.Fun.(*ast.SelectorExpr)
-	if !ok {
-		return false
-	}
+func inspectBlockForFunc(pass *analysis.Pass, block *ast.BlockStmt, funcName string) {
+	ast.Inspect(block, func(node ast.Node) bool {
+		callExpr, ok := node.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
 
-	if selx.Sel.Name != "Scan" {
-		return false
-	}
-
-	ident, ok := selx.X.(*ast.Ident)
-	if !ok {
-		return false
-	}
-
-	if ident.Obj == nil {
-		return false
-	}
-
-	assignment, ok := ident.Obj.Decl.(*ast.AssignStmt)
-	if !ok {
-		return false
-	}
-
-	if !isAssignmentScannerCreation(assignment) {
-		return false
-	}
-	return true
+		if isCallToScannerFunc(callExpr, funcName) {
+			pass.Reportf(callExpr.Pos(), "scanner.Err() called inside a Scan() loop")
+			return false
+		}
+		return true
+	})
 }
 
-func isCallToScannerErr(node *ast.CallExpr) bool {
+func isCallToScannerFunc(node *ast.CallExpr, funcName string) bool {
 	selx, ok := node.Fun.(*ast.SelectorExpr)
 	if !ok {
 		return false
 	}
 
-	if selx.Sel.Name != "Err" {
+	if selx.Sel.Name != funcName {
 		return false
 	}
 
