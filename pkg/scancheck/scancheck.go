@@ -21,7 +21,7 @@ const (
 	Description        = "Checks that bufio scanner errors are checked outside a Scan() loop"
 	funcNameScan       = "Scan"
 	funcNameErr        = "Err"
-	funcNameNew        = "New"
+	funcNameNew        = "new"
 	funcNameNewScanner = "NewScanner"
 	pkgNameBufio       = "bufio"
 	structNameScanner  = "Scanner"
