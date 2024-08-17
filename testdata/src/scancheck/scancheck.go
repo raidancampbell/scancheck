@@ -1,12 +1,12 @@
 package scancheck
 
 import (
-	alias "bufio"
+	"bufio"
 	"io"
 )
 
 func incorrectErrorScanner(reader io.Reader) {
-	scanner := alias.NewScanner(reader)
+	scanner := bufio.NewScanner(reader)
 
 	for scanner.Scan() {
 		_ = scanner.Bytes()
@@ -20,7 +20,7 @@ func incorrectErrorScanner(reader io.Reader) {
 }
 
 func bufioRawScanner(reader io.Reader) {
-	var scanner = alias.Scanner{}
+	var scanner = bufio.Scanner{}
 
 	for scanner.Scan() {
 		_ = scanner.Bytes()
@@ -31,7 +31,7 @@ func bufioRawScanner(reader io.Reader) {
 }
 
 func bufioRawNewScanner(reader io.Reader) {
-	scanner := new(alias.Scanner)
+	scanner := new(bufio.Scanner)
 
 	for scanner.Scan() {
 		_ = scanner.Bytes()
@@ -42,7 +42,7 @@ func bufioRawNewScanner(reader io.Reader) {
 }
 
 func multipleAssignment(reader io.Reader) {
-	_, scanner := alias.NewReader(reader), alias.NewScanner(reader)
+	_, scanner := bufio.NewReader(reader), bufio.NewScanner(reader)
 
 	for scanner.Scan() {
 		_ = scanner.Bytes()
@@ -53,10 +53,10 @@ func multipleAssignment(reader io.Reader) {
 }
 
 func unrelatedBufioScanner(reader io.Reader) {
-	x := func(_ alias.Scanner) *notABufioScanner {
+	x := func(_ bufio.Scanner) *notABufioScanner {
 		return newNotBufioScanner()
 	}
-	scanner := x(alias.Scanner{})
+	scanner := x(bufio.Scanner{})
 
 	for scanner.Scan() {
 		if err := scanner.Err(); err != nil {
@@ -67,7 +67,7 @@ func unrelatedBufioScanner(reader io.Reader) {
 }
 
 func correctErrorScanner(reader io.Reader) {
-	scanner := alias.NewScanner(reader)
+	scanner := bufio.NewScanner(reader)
 
 	for scanner.Scan() {
 		_ = scanner.Bytes()
@@ -84,12 +84,12 @@ func correctErrorScanner(reader io.Reader) {
 func hasNoScanner() {}
 
 func scannerIsNotScanned(reader io.Reader) {
-	scanner := alias.NewScanner(reader)
+	scanner := bufio.NewScanner(reader)
 	_ = scanner.Bytes()
 }
 
 func scannerScannedOutsideForLoop(reader io.Reader) {
-	scanner := alias.NewScanner(reader)
+	scanner := bufio.NewScanner(reader)
 	_ = scanner.Scan()
 	if err := scanner.Err(); err != nil {
 		panic(err)
@@ -98,7 +98,7 @@ func scannerScannedOutsideForLoop(reader io.Reader) {
 }
 
 func bufioNotScanner(reader io.Reader) {
-	r := alias.NewReader(reader)
+	r := bufio.NewReader(reader)
 
 	for _, err := r.ReadByte(); err != nil; {
 	}

@@ -8,13 +8,25 @@ import (
 )
 
 var Analyzer = &analysis.Analyzer{
-	Name: "scancheck",
-	Doc:  "Checks that bufio scanner errors are checked outside a Scan() loop",
+	Name: Name,
+	Doc:  Description,
 	Run:  run,
 	Requires: []*analysis.Analyzer{
 		inspect.Analyzer,
 	},
 }
+
+const (
+	Name               = "scancheck"
+	Description        = "Checks that bufio scanner errors are checked outside a Scan() loop"
+	funcNameScan       = "Scan"
+	funcNameErr        = "Err"
+	funcNameNew        = "New"
+	funcNameNewScanner = "NewScanner"
+	pkgNameBufio       = "bufio"
+	structNameScanner  = "Scanner"
+	linterErrMessage   = "scanner.Err() called inside a Scan() loop"
+)
 
 func run(pass *analysis.Pass) (interface{}, error) {
 	spector := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
@@ -31,11 +43,11 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 
-		if !isCallToScannerFunc(cond, "Scan") {
+		if !isCallToScannerFunc(cond, funcNameScan) {
 			return
 		}
 
-		inspectBlockForFunc(pass, forNode.Body, "Err")
+		inspectBlockForFunc(pass, forNode.Body, funcNameErr)
 		return
 	})
 
@@ -50,7 +62,7 @@ func inspectBlockForFunc(pass *analysis.Pass, block *ast.BlockStmt, funcName str
 		}
 
 		if isCallToScannerFunc(callExpr, funcName) {
-			pass.Reportf(callExpr.Pos(), "scanner.Err() called inside a Scan() loop")
+			pass.Reportf(callExpr.Pos(), linterErrMessage)
 			return false
 		}
 		return true
@@ -115,7 +127,7 @@ func isAssignmentScannerCreation(name string, assignStmt *ast.AssignStmt) bool {
 	case *ast.SelectorExpr: // call to bufio.NewScanner
 		return isSelxBufioScanner(fun)
 	case *ast.Ident: // call to new(bufio.Scanner)
-		if fun.Name != "new" {
+		if fun.Name != funcNameNew {
 			return false
 		}
 		// not possible: `new` builtin requires exactly 1 argument
@@ -144,11 +156,11 @@ func isSelxBufioScanner(node ast.Node) bool {
 		return false
 	}
 
-	if ident.Name != "bufio" {
+	if ident.Name != pkgNameBufio {
 		return false
 	}
 
-	if selx.Sel.Name != "NewScanner" && selx.Sel.Name != "Scanner" {
+	if selx.Sel.Name != funcNameNewScanner && selx.Sel.Name != structNameScanner {
 		return false
 	}
 
