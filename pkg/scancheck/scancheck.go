@@ -7,7 +7,7 @@ import (
 	"golang.org/x/tools/go/ast/inspector"
 )
 
-var ErrAnalyzer = &analysis.Analyzer{
+var Analyzer = &analysis.Analyzer{
 	Name: "scancheck",
 	Doc:  "Checks that bufio scanner errors are checked outside a Scan() loop",
 	Run:  run,
@@ -24,10 +24,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	}
 
 	spector.Preorder(nodeFilter, func(node ast.Node) {
-		forNode, ok := node.(*ast.ForStmt)
-		if !ok {
-			panic("node filter for ast.ForStmt failed")
-		}
+		forNode := node.(*ast.ForStmt)
 
 		cond, ok := forNode.Cond.(*ast.CallExpr)
 		if !ok {
@@ -71,54 +68,89 @@ func isCallToScannerFunc(node *ast.CallExpr, funcName string) bool {
 	}
 
 	ident, ok := selx.X.(*ast.Ident)
-	if !ok {
+	if !ok || ident.Obj == nil {
 		return false
 	}
 
-	if ident.Obj == nil {
-		return false
-	}
-
-	assignment, ok := ident.Obj.Decl.(*ast.AssignStmt)
-	if !ok {
-		return false
-	}
-
-	if !isAssignmentScannerCreation(assignment) {
-		return false
-	}
-	return true
-}
-
-func isAssignmentScannerCreation(assignStmt *ast.AssignStmt) bool {
-	if len(assignStmt.Rhs) != 1 {
-		return false
-	}
-
-	rhs, ok := assignStmt.Rhs[0].(*ast.CallExpr)
-	if !ok {
-		return false
-	}
-
-	selx, ok := rhs.Fun.(*ast.SelectorExpr)
-	if !ok {
-		return false
-	}
-
-	if !isName(selx.X, "bufio") {
-		return false
-	}
-
-	if selx.Sel.Name != "NewScanner" {
-		return false
-	}
-
-	return true
-}
-
-func isName(n ast.Node, name string) bool {
-	if n, ok := n.(*ast.Ident); ok {
-		return n.Name == name
+	switch decl := ident.Obj.Decl.(type) {
+	case *ast.AssignStmt:
+		return isAssignmentScannerCreation(ident.Obj.Name, decl)
+	case *ast.ValueSpec:
+		for _, value := range decl.Values {
+			lit, ok := value.(*ast.CompositeLit)
+			if !ok {
+				continue
+			}
+			if isSelxBufioScanner(lit.Type) {
+				return true
+			}
+		}
 	}
 	return false
+}
+
+func isAssignmentScannerCreation(name string, assignStmt *ast.AssignStmt) bool {
+	assignedIdx := -1
+	for i, lhs := range assignStmt.Lhs {
+		if ident, ok := lhs.(*ast.Ident); ok {
+			if ident.Name == name {
+				assignedIdx = i
+				break
+			}
+		}
+	}
+
+	// we didn't find the thing we were looking for, or the LHS value is a multi-assignment from a single call
+	// this is a false-negative scenario.
+	if assignedIdx == -1 || assignedIdx >= len(assignStmt.Rhs) {
+		return false
+	}
+
+	rhs, ok := assignStmt.Rhs[assignedIdx].(*ast.CallExpr)
+	if !ok {
+		return false
+	}
+
+	switch fun := rhs.Fun.(type) {
+	case *ast.SelectorExpr: // call to bufio.NewScanner
+		return isSelxBufioScanner(fun)
+	case *ast.Ident: // call to new(bufio.Scanner)
+		if fun.Name != "new" {
+			return false
+		}
+		// not possible: `new` builtin requires exactly 1 argument
+		if len(rhs.Args) != 1 {
+			return false
+		}
+		return isSelxBufioScanner(rhs.Args[0])
+	default:
+		return false
+	}
+}
+
+func isSelxBufioScanner(node ast.Node) bool {
+	selx, ok := node.(*ast.SelectorExpr)
+	if !ok {
+		return false
+	}
+
+	ident, ok := selx.X.(*ast.Ident)
+	if !ok {
+		return false
+	}
+
+	// handle shadowed bufio package
+	if ident.Obj != nil {
+		return false
+	}
+
+	if ident.Name != "bufio" {
+		return false
+	}
+
+	if selx.Sel.Name != "NewScanner" && selx.Sel.Name != "Scanner" {
+		return false
+	}
+
+	return true
 }
